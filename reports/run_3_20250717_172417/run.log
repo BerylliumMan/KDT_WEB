@@ -1,0 +1,30 @@
+2025-07-17 17:24:17,080 - INFO - Starting test case: '登录用户' from project: '数据工程'
+2025-07-17 17:24:18,047 - INFO - Executing step: goto 
+2025-07-17 17:24:18,903 - INFO - SUCCESS: goto 
+2025-07-17 17:24:18,904 - INFO - Executing step: fill on /html/body/div/div[1]/div[2]/div/div[2]/form/div[1]/div/div/input
+2025-07-17 17:24:18,913 - ERROR - FAILURE: fill on /html/body/div/div[1]/div[2]/div/div[2]/form/div[1]/div/div/input. Error: Unexpected token "/" while parsing selector "/html/body/div/div[1]/div[2]/div/div[2]/form/div[1]/div/div/input"
+Traceback (most recent call last):
+  File "C:\Users\LZL\Desktop\uitest\core\keyword_engine.py", line 51, in execute_step
+    await method(locator=locator, value=value)
+  File "C:\Users\LZL\Desktop\uitest\core\keyword_engine.py", line 81, in fill
+    await self.page.locator(locator).fill(value)
+  File "D:\python\Lib\site-packages\playwright\async_api\_generated.py", line 13913, in fill
+    await self._impl_obj.fill(
+  File "D:\python\Lib\site-packages\playwright\_impl\_locator.py", line 198, in fill
+    return await self._frame.fill(self._selector, strict=True, **params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\python\Lib\site-packages\playwright\_impl\_frame.py", line 528, in fill
+    await self._channel.send("fill", locals_to_params(locals()))
+  File "D:\python\Lib\site-packages\playwright\_impl\_connection.py", line 44, in send
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\python\Lib\site-packages\playwright\_impl\_connection.py", line 419, in wrap_api_call
+    return await cb()
+           ^^^^^^^^^^
+  File "D:\python\Lib\site-packages\playwright\_impl\_connection.py", line 79, in inner_send
+    result = next(iter(done)).result()
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+playwright._impl._api_types.Error: Unexpected token "/" while parsing selector "/html/body/div/div[1]/div[2]/div/div[2]/form/div[1]/div/div/input"
+2025-07-17 17:24:19,170 - INFO - Screenshot saved to reports\run_3_20250717_172417\screenshots\step_2_failure.png
+2025-07-17 17:24:19,659 - INFO - Test case '登录用户' finished with status: Failed
+2025-07-17 17:24:19,665 - INFO - Test run results for case 3 saved to database with run_id 17.

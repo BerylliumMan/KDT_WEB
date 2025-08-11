@@ -1,0 +1,34 @@
+2025-07-17 15:32:20,836 - INFO - Starting test case: '进入页面' from project: '百度'
+2025-07-17 15:32:22,144 - INFO - Executing step: goto 
+2025-07-17 15:32:22,570 - ERROR - FAILURE: goto . Error: net::ERR_CERT_AUTHORITY_INVALID at https://www.baidu.com/%20Uncategorized%20Test%20cases%20without%20a%20module%20%20No%20test%20cases%20in%20this%20module.
+=========================== logs ===========================
+navigating to "https://www.baidu.com/%20Uncategorized%20Test%20cases%20without%20a%20module%20%20No%20test%20cases%20in%20this%20module.", waiting until "networkidle"
+============================================================
+Traceback (most recent call last):
+  File "C:\Users\LZL\Desktop\uitest\core\keyword_engine.py", line 51, in execute_step
+    await method(locator=locator, value=value)
+  File "C:\Users\LZL\Desktop\uitest\core\keyword_engine.py", line 71, in goto
+    await self.page.goto(url, wait_until="networkidle")
+  File "D:\python\Lib\site-packages\playwright\async_api\_generated.py", line 8177, in goto
+    await self._impl_obj.goto(
+  File "D:\python\Lib\site-packages\playwright\_impl\_page.py", line 491, in goto
+    return await self._main_frame.goto(**locals_to_params(locals()))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\python\Lib\site-packages\playwright\_impl\_frame.py", line 147, in goto
+    await self._channel.send("goto", locals_to_params(locals()))
+  File "D:\python\Lib\site-packages\playwright\_impl\_connection.py", line 44, in send
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\python\Lib\site-packages\playwright\_impl\_connection.py", line 419, in wrap_api_call
+    return await cb()
+           ^^^^^^^^^^
+  File "D:\python\Lib\site-packages\playwright\_impl\_connection.py", line 79, in inner_send
+    result = next(iter(done)).result()
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+playwright._impl._api_types.Error: net::ERR_CERT_AUTHORITY_INVALID at https://www.baidu.com/%20Uncategorized%20Test%20cases%20without%20a%20module%20%20No%20test%20cases%20in%20this%20module.
+=========================== logs ===========================
+navigating to "https://www.baidu.com/%20Uncategorized%20Test%20cases%20without%20a%20module%20%20No%20test%20cases%20in%20this%20module.", waiting until "networkidle"
+============================================================
+2025-07-17 15:32:22,643 - INFO - Screenshot saved to reports\run_1_20250717_153220\screenshots\step_1_failure.png
+2025-07-17 15:32:22,828 - INFO - Test case '进入页面' finished with status: Failed
+2025-07-17 15:32:22,836 - INFO - Test run results for case 1 saved to database with run_id 1.

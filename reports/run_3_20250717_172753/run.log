@@ -1,0 +1,11 @@
+2025-07-17 17:27:53,323 - INFO - Starting test case: '登录用户' from project: '数据工程'
+2025-07-17 17:27:54,225 - INFO - Executing step: goto 
+2025-07-17 17:27:55,083 - INFO - SUCCESS: goto 
+2025-07-17 17:27:55,083 - INFO - Executing step: fill on /html/body/div/div[1]/div[2]/div/div[2]/form/div[1]/div/div/input
+2025-07-17 17:27:55,105 - INFO - SUCCESS: fill on /html/body/div/div[1]/div[2]/div/div[2]/form/div[1]/div/div/input
+2025-07-17 17:27:55,106 - INFO - Executing step: fill on /html/body/div/div[1]/div[2]/div/div[2]/form/div[2]/div/div/input
+2025-07-17 17:27:55,127 - INFO - SUCCESS: fill on /html/body/div/div[1]/div[2]/div/div[2]/form/div[2]/div/div/input
+2025-07-17 17:27:55,128 - INFO - Executing step: click on /html/body/div/div[1]/div[2]/div/div[2]/form/div[3]/div/div
+2025-07-17 17:27:55,173 - INFO - SUCCESS: click on /html/body/div/div[1]/div[2]/div/div[2]/form/div[3]/div/div
+2025-07-17 17:27:55,620 - INFO - Test case '登录用户' finished with status: Passed
+2025-07-17 17:27:55,626 - INFO - Test run results for case 3 saved to database with run_id 18.

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(uvicorn:*)",
+      "Bash(curl:*)",
+      "Bash(find:*)",
+      "Bash(pip install:*)",
+      "Bash(apt-get:*)"
+    ],
+    "deny": []
+  }
+}

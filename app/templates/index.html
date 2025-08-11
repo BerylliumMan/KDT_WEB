@@ -1,0 +1,1295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/js/remixicon.css">
+</head>
+<body>
+    {% raw %}
+    <div id="app">
+        <!-- Loading Bar -->
+        <Transition name="fade">
+            <div v-if="loadingBar.show" class="loading-bar"></div>
+        </Transition>
+
+        <!-- Toast Notifications -->
+        <div class="toast-container">
+            <TransitionGroup name="fade">
+                <div v-for="(toast, index) in toastQueue" :key="toast.id" 
+                     :class="['toast-notification', toast.type]">
+                    <i :class="toastIcon(toast.type)"></i>
+                    <span>{{ toast.message }}</span>
+                    <div class="toast-progress"></div>
+                </div>
+            </TransitionGroup>
+        </div>
+
+        <!-- Sidebar for Projects and Agents -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2><i class="ri-flask-line"></i> {{ t('projects') }}</h2>
+            </div>
+            <div class="project-list">
+                <!-- Loading Skeleton -->
+                <div v-if="loadingProjects" class="p-3">
+                    <div v-for="i in 5" :key="i" class="skeleton skeleton-card mb-2" 
+                         style="height: 50px;"></div>
+                </div>
+                
+                <ul v-else class="list-group">
+                    <li v-for="project in projects" :key="project.id"
+                        class="list-group-item"
+                        :class="{ 'active': selectedProject && selectedProject.id === project.id }"
+                        @click="selectProject(project.id)">
+                        <span>{{ project.name }}</span>
+                        <div class="project-actions">
+                            <button class="btn-icon" @click.stop="openProjectModal(project)" :title="t('editProject')">
+                                <i class="ri-pencil-line"></i>
+                            </button>
+                            <button class="btn-icon btn-danger" @click.stop="deleteProject(project.id)" :title="t('deleteProject')">
+                                <i class="ri-delete-bin-line"></i>
+                            </button>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+            
+            <!-- Agent Management Section -->
+            <div class="sidebar-section">
+                <div class="sidebar-header">
+                    <h2><i class="ri-robot-line"></i> {{ t('agents') }}</h2>
+                </div>
+                <div class="agent-list">
+                    <ul class="list-group">
+                        <li v-for="agent in agents" :key="agent.id"
+                            class="list-group-item"
+                            :class="{ 'active': agent.status === 'online' }">
+                            <div class="d-flex justify-content-between align-items-center w-100">
+                                <span>{{ agent.name }}</span>
+                                <span :class="['badge', getAgentStatusClass(agent.status)]">
+                                    {{ agent.status }}
+                                </span>
+                            </div>
+                            <small class="text-muted">{{ agent.hostname }} ({{ agent.ip_address }})</small>
+                        </li>
+                        <li v-if="agents.length === 0" class="list-group-item text-center text-muted">
+                            {{ t('noAgents') }}
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="sidebar-footer">
+                <button class="btn btn-primary btn-full-width" @click="openProjectModal()">
+                    <i class="ri-add-box-line"></i> {{ t('newProject') }}
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="content-area">
+            <div class="header">
+                <h1>{{ t('testCaseManagement') }}</h1>
+                <div>
+                    <!-- Language Selector -->
+                    <div class="language-selector">
+                        <select class="form-control" v-model="currentLanguage" @change="changeLanguage(currentLanguage)">
+                            <option value="en">English</option>
+                            <option value="zh">中文</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-secondary" @click="openModuleModal()" :disabled="!selectedProject">
+                        <i class="ri-folder-add-line"></i> {{ t('newModule') }}
+                    </button>
+                    <button class="btn btn-primary" @click="openTestCaseModal()" :disabled="!selectedProject">
+                        <i class="ri-add-line"></i> {{ t('newTestCase') }}
+                    </button>
+                </div>
+            </div>
+
+            <Transition name="fade" mode="out-in">
+                <div class="card" v-if="selectedProject" :key="selectedProject.id">
+                    <div class="card-header">
+                        <h3>{{ selectedProject.name }}</h3>
+                        <p class="text-muted">{{ selectedProject.description }}</p>
+                        <div class="dropdown-container">
+                            <button class="btn btn-run" 
+                                    @click.stop="runProjectTestCases(selectedProject.id)"
+                                    :title="t('runAllProjectTests')"
+                                    :disabled="loadingModules || loadingTestCases">
+                                <i class="ri-play-circle-line"></i> {{ t('runAllProjectTests') }}
+                            </button>
+                            <div class="dropdown">
+                                <button class="btn btn-run dropdown-toggle" 
+                                        @click.stop="toggleProjectRunDropdown()"
+                                        :class="{ 'show': showProjectRunDropdown }"
+                                        :disabled="loadingModules || loadingTestCases">
+                                </button>
+                                <div class="dropdown-menu" 
+                                     :class="{ 'show': showProjectRunDropdown }"
+                                     :style="{ zIndex: showProjectRunDropdown ? 9999 : 1050 }">
+                                    <button class="dropdown-item" @click="runProjectTestCases(selectedProject.id)">
+                                        {{ t('runOnServer') }}
+                                    </button>
+                                    <div class="dropdown-divider" v-if="agents.length > 0"></div>
+                                    <button v-for="agent in agents" :key="agent.id" 
+                                            class="dropdown-item" 
+                                            @click="runProjectTestCasesOnAgent(selectedProject.id, agent.id)">
+                                        {{ t('runOnAgent', { agent: agent.name }) }}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <!-- Loading State -->
+                        <div v-if="loadingModules || loadingTestCases" class="loading-overlay">
+                            <div class="loading-dots">
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                            </div>
+                        </div>
+
+                        <Transition name="fade" mode="out-in">
+                            <div v-if="testCases.length">
+                                <div v-for="moduleGroup in testCases" :key="moduleGroup.id || 'uncategorized'" class="module-group">
+                                    <div class="module-header" @click="moduleGroup.isCollapsed = !moduleGroup.isCollapsed">
+                                        <h4>
+                                            <i :class="moduleGroup.isCollapsed ? 'ri-arrow-right-s-line' : 'ri-arrow-down-s-line'"></i>
+                                            <i :class="moduleGroup.id ? 'ri-folder-line' : 'ri-folder-open-line'"></i>
+                                            {{ moduleGroup.name }}
+                                        </h4>
+                                        <div class="module-actions">
+                                            <button v-if="moduleGroup.id" class="btn-icon" @click.stop="openModuleModal(moduleGroup)" :title="t('editModule')">
+                                                <i class="ri-pencil-line"></i>
+                                            </button>
+                                            <button v-if="moduleGroup.id" class="btn-icon btn-danger" @click.stop="deleteModule(moduleGroup.id)" :title="t('deleteModule')">
+                                                <i class="ri-delete-bin-line"></i>
+                                            </button>
+                                            <div class="dropdown-container" v-if="moduleGroup.id">
+                                                <button class="btn btn-run btn-sm" 
+                                                        @click.stop="runModuleTestCases(moduleGroup.id)" 
+                                                        :title="t('runAllModuleTests')">
+                                                    <i class="ri-play-circle-line"></i> {{ t('runAllModuleTests') }}
+                                                </button>
+                                                <div class="dropdown">
+                                                    <button class="btn btn-run btn-sm dropdown-toggle" 
+                                                            @click.stop="toggleModuleRunDropdown(moduleGroup.id)" 
+                                                            :class="{ 'show': showModuleRunDropdown === moduleGroup.id }">
+                                                    </button>
+                                                    <div class="dropdown-menu" 
+                                                         :class="{ 'show': showModuleRunDropdown === moduleGroup.id }"
+                                                         :style="{ zIndex: showModuleRunDropdown === moduleGroup.id ? 9999 : 1050 }">
+                                                        <button class="dropdown-item" @click="runModuleTestCases(moduleGroup.id)">
+                                                            {{ t('runOnServer') }}
+                                                        </button>
+                                                        <div class="dropdown-divider" v-if="agents.length > 0"></div>
+                                                        <button v-for="agent in agents" :key="agent.id" 
+                                                                class="dropdown-item" 
+                                                                @click="runModuleTestCasesOnAgent(moduleGroup.id, agent.id)">
+                                                            {{ t('runOnAgent', { agent: agent.name }) }}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div v-if="!moduleGroup.isCollapsed" class="module-content">
+                                        <table class="test-case-table" v-if="moduleGroup.testCases.length">
+                                            <thead>
+                                                <tr>
+                                                    <th>{{ t('tableName') }}</th>
+                                                    <th>{{ t('tableDescription') }}</th>
+                                                    <th>{{ t('tableCreatedAt') }}</th>
+                                                    <th>{{ t('tableActions') }}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr v-for="tc in moduleGroup.testCases" :key="tc.id">
+                                                    <td><strong>{{ tc.name }}</strong></td>
+                                                    <td>{{ tc.description }}</td>
+                                                    <td>{{ formatDate(tc.created_at) }}</td>
+                                                    <td>
+                                                        <div class="action-buttons">
+                                                            <div class="dropdown-container">
+                                                                <button class="btn btn-run btn-sm" 
+                                                                        @click.stop="runTestCase(tc.id)">
+                                                                    <i class="ri-play-circle-line"></i> {{ t('run') }}
+                                                                </button>
+                                                                <div class="dropdown">
+                                                                    <button class="btn btn-run btn-sm dropdown-toggle" 
+                                                                            @click.stop="toggleRunDropdown(tc.id)" 
+                                                                            :class="{ 'show': showRunDropdown === tc.id }">
+                                                                    </button>
+                                                                    <div class="dropdown-menu" 
+                                                                         :class="{ 'show': showRunDropdown === tc.id }"
+                                                                         :style="{ zIndex: showRunDropdown === tc.id ? 9999 : 1050 }">
+                                                                        <button class="dropdown-item" @click="runTestCase(tc.id)">
+                                                                            {{ t('runOnServer') }}
+                                                                        </button>
+                                                                        <div class="dropdown-divider" v-if="agents.length > 0"></div>
+                                                                        <button v-for="agent in agents" :key="agent.id" 
+                                                                                class="dropdown-item" 
+                                                                                @click="runTestCaseOnAgent(tc.id, agent.id)">
+                                                                            {{ t('runOnAgent', { agent: agent.name }) }}
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <button class="btn btn-edit btn-sm" @click="openTestCaseModal(tc)">
+                                                                <i class="ri-pencil-line"></i> {{ t('edit') }}
+                                                            </button>
+                                                            <button class="btn btn-danger btn-sm" @click="deleteTestCase(tc.id)">
+                                                                <i class="ri-delete-bin-line"></i> {{ t('delete') }}
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                        <div v-else class="empty-state-small">
+                                            <p>{{ t('noTestCasesInModule') }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Pagination Controls -->
+                                <div class="pagination-controls" v-if="pagination.total_items > 0">
+                                    <span class="text-muted">{{ t('totalItems', { count: pagination.total_items }) }}</span>
+                                    <div class="pagination-buttons">
+                                        <button @click="changePage(pagination.page - 1)" :disabled="pagination.page <= 1" class="btn btn-sm">
+                                            <i class="ri-arrow-left-s-line"></i> {{ t('prevPage') }}
+                                        </button>
+                                        <span>{{ t('pageOf', { page: pagination.page, totalPages: totalPages }) }}</span>
+                                        <button @click="changePage(pagination.page + 1)" :disabled="pagination.page >= totalPages" class="btn btn-sm">
+                                            {{ t('nextPage') }} <i class="ri-arrow-right-s-line"></i>
+                                        </button>
+                                    </div>
+                                    <select v-model="pagination.size" @change="changeSize" class="pagination-size-select">
+                                        <option value="20">{{ t('itemsPerPage', { size: 20 }) }}</option>
+                                        <option value="50">{{ t('itemsPerPage', { size: 50 }) }}</option>
+                                        <option value="100">{{ t('itemsPerPage', { size: 100 }) }}</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div v-else class="empty-state">
+                                <i class="ri-inbox-2-line ri-4x"></i>
+                                <h4>{{ t('noTestCasesFound') }}</h4>
+                                <p>{{ t('getStarted') }}</p>
+                            </div>
+                        </Transition>
+                    </div>
+                </div>
+                <div v-else class="empty-state">
+                    <i class="ri-inbox-2-line ri-4x"></i>
+                    <h4>{{ t('selectAProject') }}</h4>
+                    <p>{{ t('selectAProjectDescription') }}</p>
+                </div>
+            </Transition>
+        </main>
+
+        <!-- Project Modal -->
+        <Transition name="fade">
+            <div v-if="showProjectModal" class="modal-overlay" @click.self="closeProjectModal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">{{ isEditingProject ? t('editProject') : t('newProject') }}</h5>
+                        <button type="button" class="btn-close" @click="closeProjectModal">&times;</button>
+                    </div>
+                    <form @submit.prevent="isEditingProject ? updateProject() : createProject()">
+                        <div class="row">
+                            <div class="col-md-8 mb-3">
+                                <label class="form-label">{{ t('projectName') }}</label>
+                                <input type="text" class="form-control" v-model="currentProject.name" required>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">{{ t('browser') }}</label>
+                                <select class="form-control" v-model="currentProject.browser">
+                                    <option value="chromium">Chromium</option>
+                                    <option value="firefox">Firefox</option>
+                                    <option value="webkit">WebKit</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">{{ t('baseURL') }}</label>
+                            <input type="url" class="form-control" v-model="currentProject.base_url" placeholder="https://example.com">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">{{ t('description') }}</label>
+                            <textarea class="form-control" v-model="currentProject.description" rows="3" placeholder="Project description..."></textarea>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" v-model="currentProject.headless" id="headlessCheck">
+                            <label class="form-check-label" for="headlessCheck">
+                                {{ t('headlessMode') }}
+                            </label>
+                        </div>
+                        <div class="text-end mt-4">
+                            <button type="button" class="btn btn-secondary me-2" @click="closeProjectModal">
+                                {{ t('cancel') }}
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="ri-save-line"></i> {{ isEditingProject ? t('saveChanges') : t('createProject') }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </Transition>
+
+        <!-- Module Modal -->
+        <Transition name="fade">
+            <div v-if="showModuleModal" class="modal-overlay" @click.self="closeModuleModal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">{{ isEditingModule ? t('editModule') : t('newModule') }}</h5>
+                        <button type="button" class="btn-close" @click="closeModuleModal">&times;</button>
+                    </div>
+                    <form @submit.prevent="isEditingModule ? updateModule() : createModule()">
+                        <div class="mb-3">
+                            <label class="form-label">{{ t('moduleName') }}</label>
+                            <input type="text" class="form-control" v-model="currentModule.name" required placeholder="Module name">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">{{ t('description') }}</label>
+                            <textarea class="form-control" v-model="currentModule.description" rows="4" placeholder="Module description..."></textarea>
+                        </div>
+                        <div class="text-end mt-4">
+                            <button type="button" class="btn btn-secondary me-2" @click="closeModuleModal">
+                                {{ t('cancel') }}
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="ri-folder-add-line"></i> {{ isEditingModule ? t('saveChanges') : t('createModule') }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </Transition>
+        
+        <!-- Test Case Modal -->
+        <Transition name="fade">
+            <div v-if="showTestCaseModal" class="modal-overlay" @click.self="showTestCaseModal = false">
+                <div class="modal-content modal-content-lg">
+                    <div class="modal-header">
+                        <h5 class="modal-title">{{ isEditingTestCase ? t('editTestCase') : t('newTestCase') }}</h5>
+                        <button type="button" class="btn-close" @click="closeTestCaseModal">&times;</button>
+                    </div>
+                    <form @submit.prevent="isEditingTestCase ? updateTestCase() : createTestCase()">
+                        <div class="row">
+                            <div class="col-md-9 mb-3">
+                                <label class="form-label">{{ t('testCaseName') }}</label>
+                                <input type="text" class="form-control" v-model="currentTestCase.name" required>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label">{{ t('module') }}</label>
+                                <select class="form-control" v-model="currentTestCase.module_id">
+                                    <option :value="null">{{ t('noModule') }}</option>
+                                    <option v-for="mod in modules" :key="mod.id" :value="mod.id">{{ mod.name }}</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">{{ t('description') }}</label>
+                            <textarea class="form-control" v-model="currentTestCase.description" rows="3"></textarea>
+                        </div>
+                        <h6 class="mb-3">{{ t('testSteps') }}</h6>
+                        <div class="test-steps-container">
+                            <div v-for="(step, index) in currentTestCase.steps" :key="index" class="test-step-row">
+                                <div class="step-number">{{ index + 1 }}</div>
+                                <div class="step-inputs">
+                                    <select class="form-control" v-model="step.keyword" required @change="updateStepInputs(step)">
+                                        <option disabled value="">{{ t('selectKeyword') }}</option>
+                                        <option v-for="(details, key) in keywords" :key="key" :value="key">{{ key }}</option>
+                                    </select>
+                                    <input type="text" class="form-control" :placeholder="t('locatorPlaceholder')" 
+                                           v-model="step.locator" :disabled="!isParamRequired(step.keyword, 'locator')"
+                                           :class="{ 'bg-light': !isParamRequired(step.keyword, 'locator') }">
+                                    <input type="text" class="form-control" :placeholder="t('valuePlaceholder')" 
+                                           v-model="step.value" :disabled="!isParamRequired(step.keyword, 'value')"
+                                           :class="{ 'bg-light': !isParamRequired(step.keyword, 'value') }">
+                                </div>
+                                <button type="button" class="btn-icon btn-danger" @click="removeStep(index)" :title="t('delete')">
+                                    <i class="ri-delete-bin-line"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="text-end mb-3">
+                            <button type="button" class="btn btn-secondary btn-sm" @click="addStep">
+                                <i class="ri-add-line"></i> {{ t('addStep') }}
+                            </button>
+                        </div>
+                        <hr>
+                        <div class="text-end">
+                            <button type="button" class="btn btn-secondary me-2" @click="closeTestCaseModal">
+                                {{ t('cancel') }}
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                {{ isEditingTestCase ? t('saveChanges') : t('createTestCase') }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </Transition>
+
+    </div>
+    {% endraw %}
+
+    <script src="/static/js/vue.global.prod.js"></script>
+    <script>
+        const { createApp, ref, onMounted, onUnmounted, nextTick, computed } = Vue;
+
+        // Simple i18n implementation
+        let translations = {};
+        let currentLang = 'zh';
+
+        // Load translations from JSON files
+        async function loadTranslations(lang) {
+            try {
+                const response = await fetch(`/static/locales/${lang}.json`);
+                if (!response.ok) throw new Error('Failed to load translations');
+                translations[lang] = await response.json();
+                return translations[lang];
+            } catch (error) {
+                console.error('Error loading translations:', error);
+                return {};
+            }
+        }
+
+        // Translation function with error handling
+        function t(key, params = {}) {
+            try {
+                // Ensure translations exist for current language
+                if (!translations[currentLang]) {
+                    console.warn(`Translations not loaded for language: ${currentLang}`);
+                    return key;
+                }
+                
+                const keys = key.split('.');
+                let value = translations[currentLang];
+                
+                for (const k of keys) {
+                    if (value && typeof value === 'object' && k in value) {
+                        value = value[k];
+                    } else {
+                        console.warn(`Translation key not found: ${key}`);
+                        return key; // Return key if translation not found
+                    }
+                }
+                
+                // Handle template variables like {count}, {page}, etc.
+                if (typeof value === 'string') {
+                    return value.replace(/\{(\w+)\}/g, (match, param) => {
+                        return params[param] !== undefined ? params[param] : match;
+                    });
+                }
+                
+                return value || key;
+            } catch (error) {
+                console.error('Error in translation function:', error);
+                return key;
+            }
+        }
+
+        createApp({
+            setup() {
+                const projects = ref([]);
+                const testCases = ref([]);
+                const modules = ref([]);
+                const agents = ref([]);
+                const selectedProject = ref(null);
+                const pagination = ref({
+                    page: 1,
+                    size: 20,
+                    total_items: 0
+                });
+                const showProjectModal = ref(false);
+                const isEditingProject = ref(false);
+                const showTestCaseModal = ref(false);
+                const isEditingTestCase = ref(false);
+                const showModuleModal = ref(false);
+                const isEditingModule = ref(false);
+                const keywords = ref([]);
+                const toast = ref({
+                    show: false,
+                    message: '',
+                    type: 'success'
+                });
+                const currentLanguage = ref('zh');
+
+                const totalPages = computed(() => {
+                    return Math.ceil(pagination.value.total_items / pagination.value.size);
+                });
+
+                const getAgentStatusClass = (status) => {
+                    const statusClasses = {
+                        'online': 'bg-success',
+                        'offline': 'bg-secondary',
+                        'busy': 'bg-warning',
+                        'error': 'bg-danger'
+                    };
+                    return statusClasses[status] || 'bg-secondary';
+                };
+
+                const toastQueue = ref([]);
+                const loadingBar = ref({ show: false });
+                const loadingProjects = ref(false);
+                const loadingModules = ref(false);
+                const loadingTestCases = ref(false);
+                const showRunDropdown = ref(null);
+                const showProjectRunDropdown = ref(false); // 新增的状态变量
+                const showModuleRunDropdown = ref(null); // 模块运行下拉菜单的状态变量
+
+                const toggleRunDropdown = (caseId) => {
+                    showRunDropdown.value = showRunDropdown.value === caseId ? null : caseId;
+                };
+
+                // 新增的函数用于切换项目运行下拉菜单
+                const toggleProjectRunDropdown = () => {
+                    showProjectRunDropdown.value = !showProjectRunDropdown.value;
+                };
+
+                // 新增的函数用于切换模块运行下拉菜单
+                const toggleModuleRunDropdown = (moduleId) => {
+                    showModuleRunDropdown.value = showModuleRunDropdown.value === moduleId ? null : moduleId;
+                };
+
+                const formatDate = (dateString) => {
+                    const options = { year: 'numeric', month: 'short', day: 'numeric' };
+                    return new Date(dateString).toLocaleDateString(currentLang === 'zh' ? 'zh-CN' : 'en-US', options);
+                };
+
+                const showToast = (message, type = 'success', duration = 3000) => {
+                    const toast = {
+                        id: Date.now() + Math.random(),
+                        message,
+                        type,
+                        duration
+                    };
+                    
+                    toastQueue.value.push(toast);
+                    
+                    setTimeout(() => {
+                        const index = toastQueue.value.findIndex(t => t.id === toast.id);
+                        if (index > -1) {
+                            toastQueue.value.splice(index, 1);
+                        }
+                    }, duration);
+                };
+
+                const toastIcon = (type) => {
+                    const icons = {
+                        success: 'ri-checkbox-circle-line',
+                        error: 'ri-error-warning-line',
+                        warning: 'ri-alert-line',
+                        info: 'ri-information-line'
+                    };
+                    return icons[type] || icons.success;
+                };
+
+                const showLoadingBar = () => {
+                    loadingBar.value.show = true;
+                };
+
+                const hideLoadingBar = () => {
+                    loadingBar.value.show = false;
+                };
+
+                const debounce = (func, wait) => {
+                    let timeout;
+                    return function executedFunction(...args) {
+                        const later = () => {
+                            clearTimeout(timeout);
+                            func(...args);
+                        };
+                        clearTimeout(timeout);
+                        timeout = setTimeout(later, wait);
+                    };
+                };
+
+                const newProjectTemplate = () => ({
+                    name: '',
+                    description: '',
+                    base_url: '',
+                    browser: 'chromium',
+                    headless: true
+                });
+
+                const currentProject = ref(newProjectTemplate());
+
+                const newTestCaseTemplate = () => ({
+                    name: '',
+                    description: '',
+                    module_id: null,
+                    steps: []
+                });
+
+                const currentTestCase = ref(newTestCaseTemplate());
+
+                const newModuleTemplate = () => ({
+                    name: '',
+                    description: '',
+                    project_id: null
+                });
+
+                const currentModule = ref(newModuleTemplate());
+
+                const fetchKeywords = async () => {
+                    try {
+                        const response = await fetch('/api/keywords');
+                        if (!response.ok) throw new Error('Failed to fetch keywords');
+                        keywords.value = await response.json();
+                    } catch (error) {
+                        console.error(error);
+                        showToast(t('toastError'), 'error');
+                    }
+                };
+
+                const fetchProjects = async () => {
+                    loadingProjects.value = true;
+                    showLoadingBar();
+                    try {
+                        const response = await fetch('/api/projects/');
+                        if (!response.ok) throw new Error('Failed to fetch projects');
+                        projects.value = await response.json();
+                    } catch (error) {
+                        console.error(error);
+                        showToast(t('toastError'), 'error');
+                    } finally {
+                        loadingProjects.value = false;
+                        hideLoadingBar();
+                    }
+                };
+
+                const fetchAgents = async () => {
+                    try {
+                        const response = await fetch('/api/agents/');
+                        if (!response.ok) {
+                            // Agent API might not be available
+                            return;
+                        }
+                        agents.value = await response.json();
+                    } catch (error) {
+                        console.error('Failed to fetch agents:', error);
+                        // Don't show toast for agent errors as it's optional
+                    }
+                };
+
+                const fetchModules = async (projectId) => {
+                    if (!projectId) return [];
+                    try {
+                        const response = await fetch(`/api/projects/${projectId}/modules/`);
+                        if (!response.ok) throw new Error('Failed to fetch modules');
+                        return await response.json();
+                    } catch (error) {
+                        console.error(error);
+                        showToast(t('toastError'), 'error');
+                        return [];
+                    }
+                };
+
+                const fetchTestCasesForModulePaginated = async (moduleId, page = 1, size = 20) => {
+                    if (!moduleId) return { items: [], total_items: 0 };
+                    try {
+                        const response = await fetch(`/api/testcases/module/${moduleId}/testcases?page=${page}&size=${size}`);
+                        if (!response.ok) throw new Error('Failed to fetch test cases for module');
+                        return await response.json();
+                    } catch (error) {
+                        console.error(`Error fetching test cases for module ${moduleId}:`, error);
+                        showToast(t('toastError'), 'error');
+                        return { items: [], total_items: 0 };
+                    }
+                };
+
+                const fetchProjectData = async (projectId) => {
+                    if (!projectId) return;
+
+                    loadingModules.value = true;
+                    loadingTestCases.value = true;
+                    showLoadingBar();
+                    
+                    try {
+                        const fetchedModules = await fetchModules(projectId);
+                        modules.value = fetchedModules;
+
+                        const modulePromises = fetchedModules.map(async (mod) => {
+                            const caseData = await fetchTestCasesForModulePaginated(mod.id, 1, pagination.value.size);
+                            return {
+                                ...mod,
+                                testCases: caseData.items,
+                                totalCases: caseData.total_items,
+                                currentPage: 1,
+                                isCollapsed: false
+                            };
+                        });
+                        
+                        const modulesWithCases = await Promise.all(modulePromises);
+                        testCases.value = modulesWithCases.sort((a, b) => a.name.localeCompare(b.name));
+                        
+                        if (modulesWithCases.length > 0) {
+                            pagination.value.total_items = modulesWithCases.reduce((acc, mod) => acc + mod.totalCases, 0);
+                        } else {
+                            pagination.value.total_items = 0;
+                        }
+                        pagination.value.page = 1;
+                    } catch (error) {
+                        console.error('Error fetching project data:', error);
+                        showToast(t('toastError'), 'error');
+                    } finally {
+                        loadingModules.value = false;
+                        loadingTestCases.value = false;
+                        hideLoadingBar();
+                    }
+                };
+
+                const selectProject = async (projectId) => {
+                    selectedProject.value = projects.value.find(p => p.id === projectId) || null;
+                    if (selectedProject.value) {
+                        pagination.value.page = 1;
+                        await fetchProjectData(projectId);
+                    } else {
+                        testCases.value = [];
+                        modules.value = [];
+                        pagination.value.total_items = 0;
+                    }
+                };
+
+                const changePage = async (newPage) => {
+                    if (newPage < 1 || newPage > totalPages.value) return;
+                    pagination.value.page = newPage;
+                    await fetchProjectData(selectedProject.value.id);
+                };
+
+                const changeSize = async () => {
+                    pagination.value.page = 1;
+                    await fetchProjectData(selectedProject.value.id);
+                };
+                
+                const openProjectModal = (project = null) => {
+                    if (project) {
+                        isEditingProject.value = true;
+                        currentProject.value = { ...project };
+                    } else {
+                        isEditingProject.value = false;
+                        currentProject.value = newProjectTemplate();
+                    }
+                    showProjectModal.value = true;
+                };
+
+                const closeProjectModal = () => {
+                    showProjectModal.value = false;
+                    isEditingProject.value = false;
+                    currentProject.value = newProjectTemplate();
+                };
+
+                const createProject = async () => {
+                    try {
+                        const response = await fetch('/api/projects/', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(currentProject.value)
+                        });
+                        if (!response.ok) {
+                            const err = await response.json();
+                            throw new Error(err.detail || 'Failed to create project');
+                        }
+                        const newProjectData = await response.json();
+                        closeProjectModal();
+                        await fetchProjects();
+                        showToast(t('projectCreated'));
+                        
+                        await nextTick();
+                        selectProject(newProjectData.id);
+
+                    } catch (error) {
+                        console.error(error);
+                        showToast(`${t('toastError')}: ${error.message}`, 'error');
+                    }
+                };
+
+                const updateProject = async () => {
+                    if (!currentProject.value.id) return;
+                    try {
+                        const response = await fetch(`/api/projects/${currentProject.value.id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(currentProject.value)
+                        });
+                        if (!response.ok) {
+                             const err = await response.json();
+                            throw new Error(err.detail || 'Failed to update project');
+                        }
+                        
+                        const updatedProjectData = await response.json();
+                        closeProjectModal();
+                        await fetchProjects();
+                        showToast(t('projectUpdated'));
+
+                        if (selectedProject.value && selectedProject.value.id === updatedProjectData.id) {
+                           await nextTick();
+                           selectProject(updatedProjectData.id);
+                        }
+
+                    } catch (error) {
+                        console.error(error);
+                        showToast(`${t('toastError')}: ${error.message}`, 'error');
+                    }
+                };
+
+                const deleteProject = async (projectId) => {
+                    if (confirm(t('deleteProjectConfirmation'))) {
+                        try {
+                            const response = await fetch(`/api/projects/${projectId}`, { method: 'DELETE' });
+                            if (!response.ok) {
+                                const err = await response.json();
+                                throw new Error(err.detail || 'Failed to delete project');
+                            }
+                            
+                            if (selectedProject.value && selectedProject.value.id === projectId) {
+                                selectedProject.value = null;
+                                testCases.value = [];
+                            }
+                            await fetchProjects();
+
+                        } catch (error) {
+                            console.error(error);
+                            alert(`${t('toastError')}: ${error.message}`);
+                        }
+                    }
+                };
+
+                const openModuleModal = (module = null) => {
+                    if (!selectedProject.value) {
+                        showToast(t('selectProjectFirst'), "error");
+                        return;
+                    }
+                    if (module) {
+                        isEditingModule.value = true;
+                        currentModule.value = { ...module };
+                    } else {
+                        isEditingModule.value = false;
+                        currentModule.value = newModuleTemplate();
+                        currentModule.value.project_id = selectedProject.value.id;
+                    }
+                    showModuleModal.value = true;
+                };
+
+                const closeModuleModal = () => {
+                    showModuleModal.value = false;
+                    isEditingModule.value = false;
+                    currentModule.value = newModuleTemplate();
+                };
+
+                const createModule = async () => {
+                    if (!selectedProject.value) return;
+                    try {
+                        const response = await fetch(`/api/projects/${selectedProject.value.id}/modules/`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(currentModule.value)
+                        });
+                        if (!response.ok) {
+                            const err = await response.json();
+                            throw new Error(err.detail || 'Failed to create module');
+                        }
+                        closeModuleModal();
+                        await fetchProjectData(selectedProject.value.id);
+                        showToast(t('moduleCreated'));
+                    } catch (error) {
+                        console.error(error);
+                        showToast(`${t('toastError')}: ${error.message}`, 'error');
+                    }
+                };
+
+                const updateModule = async () => {
+                    if (!currentModule.value.id) return;
+                    try {
+                        const response = await fetch(`/api/modules/${currentModule.value.id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(currentModule.value)
+                        });
+                        if (!response.ok) {
+                            const err = await response.json();
+                            throw new Error(err.detail || 'Failed to update module');
+                        }
+                        closeModuleModal();
+                        await fetchProjectData(selectedProject.value.id);
+                        showToast(t('moduleUpdated'));
+                    } catch (error) {
+                        console.error(error);
+                        showToast(`${t('toastError')}: ${error.message}`, 'error');
+                    }
+                };
+
+                const deleteModule = async (moduleId) => {
+                    if (confirm(t('deleteModuleConfirmation'))) {
+                        try {
+                            const response = await fetch(`/api/modules/${moduleId}`, { method: 'DELETE' });
+                            if (response.status !== 204) {
+                                const err = await response.json();
+                                throw new Error(err.detail || 'Failed to delete module');
+                            }
+                            await fetchProjectData(selectedProject.value.id);
+                            showToast(t('moduleDeleted'));
+                        } catch (error) {
+                            console.error(error);
+                            showToast(`${t('toastError')}: ${error.message}`, 'error');
+                        }
+                    }
+                };
+
+                const openTestCaseModal = (testCase = null) => {
+                    if (testCase) {
+                        isEditingTestCase.value = true;
+                        currentTestCase.value = JSON.parse(JSON.stringify(testCase));
+                    } else {
+                        isEditingTestCase.value = false;
+                        currentTestCase.value = newTestCaseTemplate();
+                    }
+                    showTestCaseModal.value = true;
+                };
+
+                const closeTestCaseModal = () => {
+                    showTestCaseModal.value = false;
+                    isEditingTestCase.value = false;
+                    currentTestCase.value = newTestCaseTemplate();
+                };
+
+                const createTestCase = async () => {
+                    if (!selectedProject.value) return;
+                    currentTestCase.value.steps.forEach((step, index) => {
+                        step.step_order = index + 1;
+                    });
+                    const payload = {
+                        project_id: selectedProject.value.id,
+                        module_id: currentTestCase.value.module_id,
+                        name: currentTestCase.value.name,
+                        description: currentTestCase.value.description,
+                        steps: currentTestCase.value.steps
+                    };
+                    try {
+                        const response = await fetch('/api/testcases/', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        if (!response.ok) throw new Error('Failed to create test case');
+                        closeTestCaseModal();
+                        await fetchProjectData(selectedProject.value.id);
+                        showToast(t('testCaseCreated'));
+                    } catch (error) {
+                        console.error(error);
+                        showToast(t('toastError'), 'error');
+                    }
+                };
+
+                const updateTestCase = async () => {
+                    if (!currentTestCase.value.id) return;
+                    currentTestCase.value.steps.forEach((step, index) => {
+                        step.step_order = index + 1;
+                    });
+                    try {
+                        const response = await fetch(`/api/testcases/${currentTestCase.value.id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                name: currentTestCase.value.name,
+                                description: currentTestCase.value.description,
+                                module_id: currentTestCase.value.module_id,
+                                steps: currentTestCase.value.steps
+                            })
+                        });
+                        if (!response.ok) {
+                            const err = await response.json();
+                            throw new Error(err.detail || 'Failed to update test case');
+                        }
+                        closeTestCaseModal();
+                        await fetchProjectData(selectedProject.value.id);
+                        showToast(t('testCaseUpdated'));
+                    } catch (error) {
+                        console.error(error);
+                        showToast(`${t('toastError')}: ${error.message}`, 'error');
+                    }
+                };
+                
+                const deleteTestCase = async (caseId) => {
+                    if(confirm(t('deleteTestCaseConfirmation'))) {
+                        try {
+                            const response = await fetch(`/api/testcases/${caseId}`, { method: 'DELETE' });
+                            if (!response.ok) throw new Error('Failed to delete test case');
+                            await fetchProjectData(selectedProject.value.id);
+                        } catch (error) {
+                            console.error(error);
+                            alert(t('toastError'));
+                        }
+                    }
+                };
+
+                const runTestCase = async (caseId) => {
+                    showToast(t('runTriggered', { target: `test case ${caseId}` }));
+                    try {
+                        const response = await fetch(`/api/testcases/${caseId}/run`, { method: 'POST' });
+                        if (!response.ok) throw new Error('Failed to run test case');
+                    } catch (error) {
+                        console.error(error);
+                        showToast(t('toastError'), 'error');
+                    }
+                };
+
+                const runTestCaseOnAgent = async (caseId, agentId) => {
+                    showToast(t('runTriggered', { target: `test case ${caseId} on agent ${agentId}` }));
+                    try {
+                        const response = await fetch(`/api/agents/${agentId}/run/testcase/${caseId}`, { 
+                            method: 'POST' 
+                        });
+                        if (!response.ok) throw new Error('Failed to run test case on agent');
+                    } catch (error) {
+                        console.error(error);
+                        showToast(t('toastError'), 'error');
+                    }
+                };
+
+                const runModuleTestCases = async (moduleId) => {
+                    showToast(t('runTriggered', { target: `module ${moduleId}` }));
+                    try {
+                        const response = await fetch(`/api/testcases/module/${moduleId}/run`, { method: 'POST' });
+                        if (!response.ok) throw new Error('Failed to run module test cases');
+                        showToast(t('runTriggered'));
+                    } catch (error) {
+                        console.error(error);
+                        showToast(`${t('toastError')}: ${error.message}`, 'error');
+                    }
+                };
+
+                // 新增的函数用于在代理上运行模块测试用例
+                const runModuleTestCasesOnAgent = async (moduleId, agentId) => {
+                    showToast(t('runTriggered', { target: `module ${moduleId} on agent ${agentId}` }));
+                    try {
+                        const response = await fetch(`/api/agents/${agentId}/run/module/${moduleId}`, { 
+                            method: 'POST' 
+                        });
+                        if (!response.ok) throw new Error('Failed to run module test cases on agent');
+                    } catch (error) {
+                        console.error(error);
+                        showToast(`${t('toastError')}: ${error.message}`, 'error');
+                    }
+                };
+
+                const runProjectTestCases = async (projectId) => {
+                    showToast(t('runTriggered', { target: `project ${projectId}` }));
+                    try {
+                        const response = await fetch(`/api/testcases/project/${projectId}/run`, { method: 'POST' });
+                        if (!response.ok) throw new Error('Failed to run project test cases');
+                        showToast(t('runTriggered'));
+                    } catch (error) {
+                        console.error(error);
+                        showToast(`${t('toastError')}: ${error.message}`, 'error');
+                    }
+                };
+
+                // 新增的函数用于在代理上运行项目测试用例
+                const runProjectTestCasesOnAgent = async (projectId, agentId) => {
+                    showToast(t('runTriggered', { target: `project ${projectId} on agent ${agentId}` }));
+                    try {
+                        const response = await fetch(`/api/agents/${agentId}/run/project/${projectId}`, { 
+                            method: 'POST' 
+                        });
+                        if (!response.ok) throw new Error('Failed to run project test cases on agent');
+                    } catch (error) {
+                        console.error(error);
+                        showToast(`${t('toastError')}: ${error.message}`, 'error');
+                    }
+                };
+
+                const addStep = () => {
+                    currentTestCase.value.steps.push({ keyword: '', locator: '', value: '', description: '' });
+                };
+
+                const removeStep = (index) => {
+                    currentTestCase.value.steps.splice(index, 1);
+                };
+
+                const isParamRequired = (keyword, param) => {
+                    if (!keyword || !keywords.value[keyword]) return true;
+                    return keywords.value[keyword].params.includes(param);
+                };
+
+                const updateStepInputs = (step) => {
+                    if (!isParamRequired(step.keyword, 'locator')) {
+                        step.locator = '';
+                    }
+                    if (!isParamRequired(step.keyword, 'value')) {
+                        step.value = '';
+                    }
+                };
+
+                const changeLanguage = async (lang) => {
+                    try {
+                        // Ensure we have a valid language code
+                        const langCode = typeof lang === 'string' ? lang : currentLanguage.value;
+                        
+                        if (!['en', 'zh'].includes(langCode)) {
+                            console.warn('Invalid language code:', langCode);
+                            return;
+                        }
+                        
+                        currentLang = langCode;
+                        currentLanguage.value = langCode;
+                        await loadTranslations(langCode);
+                        
+                        // Refresh the UI by updating reactive data
+                        if (projects.value && projects.value.length) {
+                            projects.value = [...projects.value];
+                        }
+                        
+                        if (testCases.value && testCases.value.length) {
+                            testCases.value = [...testCases.value];
+                        }
+                        
+                        if (modules.value && modules.value.length) {
+                            modules.value = [...modules.value];
+                        }
+                        
+                        // If a project is selected, refresh its data
+                        if (selectedProject.value) {
+                            await selectProject(selectedProject.value.id);
+                        }
+                    } catch (error) {
+                        console.error('Error changing language:', error);
+                        showToast(t('toastError') + ': ' + error.message, 'error');
+                    }
+                };
+
+                onMounted(async () => {
+                    // Load initial translations
+                    await loadTranslations(currentLanguage.value);
+                    
+                    await fetchKeywords();
+                    await fetchProjects();
+                    await fetchAgents();
+                    if (projects.value.length > 0) {
+                        selectProject(projects.value[0].id);
+                    }
+                    
+                    // Add global click listener to close dropdowns
+                    const handleClickOutside = (event) => {
+                        // Check if the clicked element is inside a dropdown
+                        const dropdownButtons = document.querySelectorAll('.dropdown-toggle');
+                        const dropdownMenus = document.querySelectorAll('.dropdown-menu');
+                        let isInsideDropdown = false;
+                        
+                        // Check if click is on dropdown button or inside dropdown menu
+                        for (let i = 0; i < dropdownButtons.length; i++) {
+                            if (dropdownButtons[i].contains(event.target)) {
+                                isInsideDropdown = true;
+                                break;
+                            }
+                        }
+                        
+                        if (!isInsideDropdown) {
+                            for (let i = 0; i < dropdownMenus.length; i++) {
+                                if (dropdownMenus[i].contains(event.target)) {
+                                    isInsideDropdown = true;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        // If click is outside dropdowns, close all dropdowns
+                        if (!isInsideDropdown) {
+                            showRunDropdown.value = null;
+                            showProjectRunDropdown.value = false; // 关闭项目运行下拉菜单
+                            showModuleRunDropdown.value = null; // 关闭模块运行下拉菜单
+                        }
+                    };
+                    
+                    document.addEventListener('click', handleClickOutside);
+                    
+                    // Store reference to remove listener later
+                    window.dropdownClickHandler = handleClickOutside;
+                });
+                
+                onUnmounted(() => {
+                    // Remove the global click listener when component is unmounted
+                    if (window.dropdownClickHandler) {
+                        document.removeEventListener('click', window.dropdownClickHandler);
+                        delete window.dropdownClickHandler;
+                    }
+                });
+
+                return {
+                    projects,
+                    testCases,
+                    modules,
+                    agents,
+                    selectedProject,
+                    showProjectModal,
+                    isEditingProject,
+                    currentProject,
+                    showTestCaseModal,
+                    isEditingTestCase,
+                    currentTestCase,
+                    showModuleModal,
+                    isEditingModule,
+                    currentModule,
+                    keywords,
+                    toastQueue,
+                    loadingBar,
+                    loadingProjects,
+                    loadingModules,
+                    loadingTestCases,
+                    pagination,
+                    totalPages,
+                    changePage,
+                    changeSize,
+                    selectProject,
+                    openProjectModal,
+                    closeProjectModal,
+                    createProject,
+                    updateProject,
+                    deleteProject,
+                    openTestCaseModal,
+                    closeTestCaseModal,
+                    createTestCase,
+                    updateTestCase,
+                    deleteTestCase,
+                    runTestCase,
+                    runTestCaseOnAgent,
+                    runModuleTestCases,
+                    runModuleTestCasesOnAgent,
+                    runProjectTestCases,
+                    runProjectTestCasesOnAgent,
+                    openModuleModal,
+                    closeModuleModal,
+                    createModule,
+                    updateModule,
+                    deleteModule,
+                    addStep,
+                    removeStep,
+                    isParamRequired,
+                    updateStepInputs,
+                    toastIcon,
+                    t,
+                    currentLanguage,
+                    changeLanguage,
+                    getAgentStatusClass,
+                    showRunDropdown,
+                    showProjectRunDropdown,
+                    showModuleRunDropdown,
+                    toggleRunDropdown,
+                    toggleProjectRunDropdown,
+                    toggleModuleRunDropdown,
+                    formatDate
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

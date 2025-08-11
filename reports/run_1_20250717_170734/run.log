@@ -1,0 +1,64 @@
+2025-07-17 17:07:34,447 - INFO - Starting test case: '进入页面' from project: '百度'
+2025-07-17 17:07:35,399 - INFO - Executing step: 打开百度首页
+2025-07-17 17:07:47,214 - INFO - SUCCESS: 打开百度首页
+2025-07-17 17:07:47,215 - INFO - Executing step: 在搜索框输入Gemini
+2025-07-17 17:07:47,265 - INFO - SUCCESS: 在搜索框输入Gemini
+2025-07-17 17:07:47,265 - INFO - Executing step: 点击搜索按钮
+2025-07-17 17:07:47,339 - INFO - SUCCESS: 点击搜索按钮
+2025-07-17 17:07:47,341 - INFO - Executing step: 验证第一个结果的标题
+2025-07-17 17:07:52,390 - ERROR - FAILURE: 验证第一个结果的标题. Error: Locator expected to have text 'Gemini'
+Actual value:  
+Call log:
+LocatorAssertions.to_have_text with timeout 5000ms
+waiting for locator("xpath=//*[@id=\"kw\"]")
+  locator resolved to <input id="kw" value="" name="wd" class="s_ipt" placeho…/>
+  unexpected value ""
+  locator resolved to <input id="kw" value="" name="wd" class="s_ipt" placeho…/>
+  unexpected value ""
+  locator resolved to <input id="kw" value="" name="wd" class="s_ipt" placeho…/>
+  unexpected value ""
+  locator resolved to <input id="kw" value="" name="wd" class="s_ipt" placeho…/>
+  unexpected value ""
+  locator resolved to <input id="kw" value="" name="wd" class="s_ipt" placeho…/>
+  unexpected value ""
+  locator resolved to <input id="kw" value="" name="wd" class="s_ipt" placeho…/>
+  unexpected value ""
+  locator resolved to <input id="kw" value="" name="wd" class="s_ipt" placeho…/>
+  unexpected value ""
+  locator resolved to <input id="kw" value="" name="wd" class="s_ipt" placeho…/>
+  unexpected value ""
+Traceback (most recent call last):
+  File "C:\Users\LZL\Desktop\uitest\core\keyword_engine.py", line 51, in execute_step
+    await method(locator=locator, value=value)
+  File "C:\Users\LZL\Desktop\uitest\core\keyword_engine.py", line 106, in expect_text
+    await expect(self.page.locator(locator)).to_have_text(value)
+  File "D:\python\Lib\site-packages\playwright\async_api\_generated.py", line 17075, in to_have_text
+    await self._impl_obj.to_have_text(
+  File "D:\python\Lib\site-packages\playwright\_impl\_assertions.py", line 397, in to_have_text
+    await self._expect_impl(
+  File "D:\python\Lib\site-packages\playwright\_impl\_assertions.py", line 55, in _expect_impl
+    raise AssertionError(
+AssertionError: Locator expected to have text 'Gemini'
+Actual value:  
+Call log:
+LocatorAssertions.to_have_text with timeout 5000ms
+waiting for locator("xpath=//*[@id=\"kw\"]")
+  locator resolved to <input id="kw" value="" name="wd" class="s_ipt" placeho…/>
+  unexpected value ""
+  locator resolved to <input id="kw" value="" name="wd" class="s_ipt" placeho…/>
+  unexpected value ""
+  locator resolved to <input id="kw" value="" name="wd" class="s_ipt" placeho…/>
+  unexpected value ""
+  locator resolved to <input id="kw" value="" name="wd" class="s_ipt" placeho…/>
+  unexpected value ""
+  locator resolved to <input id="kw" value="" name="wd" class="s_ipt" placeho…/>
+  unexpected value ""
+  locator resolved to <input id="kw" value="" name="wd" class="s_ipt" placeho…/>
+  unexpected value ""
+  locator resolved to <input id="kw" value="" name="wd" class="s_ipt" placeho…/>
+  unexpected value ""
+  locator resolved to <input id="kw" value="" name="wd" class="s_ipt" placeho…/>
+  unexpected value ""
+2025-07-17 17:07:52,550 - INFO - Screenshot saved to reports\run_1_20250717_170734\screenshots\step_22_failure.png
+2025-07-17 17:07:53,399 - INFO - Test case '进入页面' finished with status: Failed
+2025-07-17 17:07:53,405 - INFO - Test run results for case 1 saved to database with run_id 15.

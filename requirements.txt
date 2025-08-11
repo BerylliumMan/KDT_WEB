@@ -1,0 +1,10 @@
+playwright
+fastapi
+uvicorn[standard]
+pydantic
+pydoris
+aiofiles
+Jinja2
+python-multipart
+mysql-connector-python
+httpx
